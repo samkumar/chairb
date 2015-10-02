@@ -37,6 +37,7 @@ func main() {
 	msgchan, err = cl.Subscribe(&bw.SubscribeParams{
 		URI: RAWDATAURI,
 		PrimaryAccessChain: dchain.Hash,
+		ElaboratePAC: "full",
 	})
 	
 	var msg *bw.SimpleMessage
