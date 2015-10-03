@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	
 	"github.com/ugorji/go/codec"
 	
@@ -10,7 +12,9 @@ import (
 )
 
 const (
-	RAWDATAURI = "castle.bw2.io/sam/test/rawdata"
+	RAWDATAURI = "castle.bw2.io/sam/+/+/rawlog"
+	CHAIREND = "/rawlog"
+	CHAIRSTART = "/sam"
 )
 
 func exitOnError(err error, msg string) {
@@ -20,15 +24,30 @@ func exitOnError(err error, msg string) {
 	}
 }
 
-func parseIncomingMessage(msg *bw.SimpleMessage, h codec.Handle) {
+func parseIncomingMessage(msg *bw.SimpleMessage, h codec.Handle) (string, ChairMessage, error) {
+	var end int = strings.LastIndex(msg.URI, CHAIREND)
+	var start int = strings.Index(msg.URI, CHAIRSTART) + len(CHAIRSTART)
+	if end == -1 || start == -1 {
+		return "", nil, errors.New(fmt.Sprintf("invalid path %v", msg.URI))
+	}
+	var chairid string = msg.URI[start:end]
+	
 	var contents []byte = msg.POs[0].GetContents()
 	var dec *codec.Decoder = codec.NewDecoderBytes(contents, h)
-	var cm ChairMessage = NewChairMessage()
-	var err error = dec.Decode(&cm)
-	fmt.Printf("Decoded message: %v\n", cm)
-	exitOnError(err, "Could not decode message")
+
+	var cm ChairMessage
+	var err error
+	cm, err = NewChairMessageFrom(dec)
+	if err != nil {
+		return chairid, cm, errors.New(fmt.Sprintf("could not parse message: %v", err))
+	}
+	
 	err = cm.SanityCheck()
-	exitOnError(err, "Decode message fails sanity check")
+	if err != nil {
+		return chairid, cm, errors.New(fmt.Sprintf("decoded message fails sanity check: %v", err))
+	} else {
+		return chairid, cm, nil
+	}
 }
 
 func main() {
@@ -56,8 +75,14 @@ func main() {
 	})
 	
 	var msg *bw.SimpleMessage
+	var cid string
+	var cm ChairMessage
 	for msg = range msgchan {
-		parseIncomingMessage(msg, chandle)
-		msg.Dump()
+		cid, cm, err = parseIncomingMessage(msg, chandle)
+		if err == nil {
+			fmt.Printf("Received message for chair %v: %v\n", cid, cm)
+		} else {
+			fmt.Printf("Could not handle incoming message: %v\n", err)
+		}
 	}
 }

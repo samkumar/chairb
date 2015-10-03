@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	
+	"github.com/ugorji/go/codec"
 )
 
 type ChairMessage map[string]interface{}
@@ -24,6 +26,16 @@ var SAMPLE_MESSAGE = map[string]interface{}{
 
 func NewChairMessage() ChairMessage {
 	return make(map[string]interface{})
+}
+
+func NewChairMessageFrom(dec *codec.Decoder) (cm ChairMessage, err error) {
+	cm = NewChairMessage()
+	err = cm.DecodeFrom(dec)
+	return
+}
+
+func (cm ChairMessage) DecodeFrom(dec *codec.Decoder) error {
+	return dec.Decode(&cm)
 }
 
 func (cm ChairMessage) SanityCheck() error {
