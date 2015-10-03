@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	
+	"github.com/ugorji/go/codec"
+	
 	bw "github.com/immesys/bw2bind"
 )
 
@@ -18,10 +20,23 @@ func exitOnError(err error, msg string) {
 	}
 }
 
+func parseIncomingMessage(msg *bw.SimpleMessage, h codec.Handle) {
+	var contents []byte = msg.POs[0].GetContents()
+	var dec *codec.Decoder = codec.NewDecoderBytes(contents, h)
+	var cm ChairMessage = NewChairMessage()
+	var err error = dec.Decode(&cm)
+	fmt.Printf("Decoded message: %v\n", cm)
+	exitOnError(err, "Could not decode message")
+	err = cm.SanityCheck()
+	exitOnError(err, "Decode message fails sanity check")
+}
+
 func main() {
 	var err error
-	var cl *bw.BW2Client
 	
+	var chandle codec.Handle = new(codec.MsgpackHandle)
+	
+	var cl *bw.BW2Client
 	cl, err = bw.Connect("localhost:28589")
 	exitOnError(err, "Could not connect")
 	
@@ -30,7 +45,7 @@ func main() {
 	exitOnError(err, "Could not use entity")
 	
 	var dchain *bw.SimpleChain
-	dchain, err = cl.BuildAnyChain(RAWDATAURI, "P", vk)
+	dchain, err = cl.BuildAnyChain(RAWDATAURI, "CP", vk)
 	exitOnError(err, "Could not build DOT chain")
 	
 	var msgchan chan *bw.SimpleMessage
@@ -42,6 +57,7 @@ func main() {
 	
 	var msg *bw.SimpleMessage
 	for msg = range msgchan {
+		parseIncomingMessage(msg, chandle)
 		msg.Dump()
 	}
 }
